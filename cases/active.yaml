@@ -1,0 +1,10 @@
+# Active case — edit preset, then re-run any notebook.
+# preset: sample | micron | apple | microsoft | nvidia | amd | custom
+
+preset: micron
+custom:
+  ticker: TXN
+  peers:
+  - ADI
+  - QCOM
+  segments: []

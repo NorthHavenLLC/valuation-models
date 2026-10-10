@@ -1,0 +1,51 @@
+# Named universes. Peers are used by the comps model.
+# Segments are optional SOTP allocations (labeled as assumptions, not footnotes).
+
+sample:
+  label: Northbridge Industries (synthetic)
+  ticker: null
+  peers: []
+  segments: []
+
+micron:
+  label: Micron Technology
+  ticker: MU
+  # USD filers only — TSM is omitted (TWD statements vs USD price break EV multiples).
+  peers: [AVGO, AMD, INTC, QCOM, NVDA, TXN, ADI]
+  # Illustrative allocation for teaching SOTP — not Micron's audited segments.
+  segments:
+    - {name: DRAM, revenue_share: 0.68, ebitda_margin: 0.38, ev_ebitda: 14.0}
+    - {name: NAND, revenue_share: 0.32, ebitda_margin: 0.22, ev_ebitda: 10.0}
+
+apple:
+  label: Apple Inc.
+  ticker: AAPL
+  peers: [MSFT, GOOGL, AMZN, META]
+  segments:
+    - {name: Products, revenue_share: 0.75, ebitda_margin: 0.32, ev_ebitda: 22.0}
+    - {name: Services, revenue_share: 0.25, ebitda_margin: 0.42, ev_ebitda: 20.0}
+
+microsoft:
+  label: Microsoft
+  ticker: MSFT
+  peers: [AAPL, GOOGL, AMZN, ORCL, CRM]
+  segments:
+    - {name: Productivity, revenue_share: 0.30, ebitda_margin: 0.50, ev_ebitda: 22.0}
+    - {name: Intelligent Cloud, revenue_share: 0.42, ebitda_margin: 0.48, ev_ebitda: 24.0}
+    - {name: More Personal Computing, revenue_share: 0.28, ebitda_margin: 0.30, ev_ebitda: 16.0}
+
+nvidia:
+  label: NVIDIA
+  ticker: NVDA
+  peers: [AMD, AVGO, TSM, MU, INTC]
+  segments:
+    - {name: Data Center, revenue_share: 0.80, ebitda_margin: 0.55, ev_ebitda: 35.0}
+    - {name: Other, revenue_share: 0.20, ebitda_margin: 0.30, ev_ebitda: 20.0}
+
+amd:
+  label: Advanced Micro Devices
+  ticker: AMD
+  peers: [NVDA, INTC, MU, AVGO, QCOM]
+  segments:
+    - {name: Data Center, revenue_share: 0.45, ebitda_margin: 0.35, ev_ebitda: 28.0}
+    - {name: Client / Gaming / Embedded, revenue_share: 0.55, ebitda_margin: 0.22, ev_ebitda: 18.0}

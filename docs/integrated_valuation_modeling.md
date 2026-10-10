@@ -1,0 +1,326 @@
+# One Case, Five Lenses
+
+### Integrating Classical Valuation Models for Rapid Financial Analysis
+
+| | |
+| --- | --- |
+| **Status** | Final project paper |
+| **Package** | `valuation-models` v0.1.0 |
+| **Date** | October 2026 |
+| **Verification** | 32 automated tests passing |
+
+**Abstract.** Equity valuation practice triangulates several classical methods—linked financial statements, discounted cash flow (DCF), trading comps, leveraged buyouts (LBO), and sum-of-the-parts (SOTP)—yet those lenses are often rebuilt in inconsistent spreadsheets. This paper argues that each model’s importance is best understood by the distinct economic *question* it answers, and that a useful modeling system is one that forces those questions onto a single shared case. We describe a Python package and notebook suite in which one active case (synthetic or live) feeds five valuation engines and a non-averaging bridge. Assumption changes propagate across methods; mapping and timing gaps are surfaced rather than hidden; sensitivity surfaces make terminal and leverage assumptions inspectable in two dimensions. The contribution is architectural and pedagogical: speed comes from reuse, rigor from refusing to collapse disagreement into a blended target price.
+
+**Keywords.** discounted cash flow; trading multiples; LBO; sum-of-the-parts; three-statement model; valuation triangulation; sensitivity surfaces; financial modeling systems
+
+---
+
+## 1. Introduction
+
+A useful valuation answer is rarely a single number. It is a *set* of answers under transparent assumptions, together with an account of why those answers diverge. In investment banking, equity research, and private equity, that set typically includes:
+
+1. a linked income statement, balance sheet, and cash flow (the operating spine);
+2. a DCF (cash the business can generate);
+3. trading comps (what peers imply for the same earnings);
+4. an LBO (what a leveraged buyer can pay and still clear a return hurdle);
+5. often a sum-of-the-parts (what divisions are worth under their own multiples).
+
+Each method encodes a different theory of value and a different failure mode. A DCF can look precise while being mostly a terminal-value assumption. Comps can look market-based while mixing business models. An LBO can look like intrinsic value while answering only affordability under a debt package. SOTP can look granular while resting on unaudited allocations. The three-statement model does not value the firm at all—yet without it, free cash flow, leverage capacity, and working-capital investment are not a coherent system.
+
+This project treats that plurality as the product. A shared `Case` is selected once—via `cases/active.yaml`, a notebook dropdown, or `switch_case(...)`—and every model notebook loads the same equity, peers, and segments. A bridge places the answers side by side without averaging them into a “target price.” The operational claim is narrow: *quick financial modeling* is less about typing formulas faster than about changing one assumption set and reading five consistent reactions.
+
+### 1.1 Research questions
+
+1. What distinct economic question does each classical model answer, and why does that question remain necessary when other models are available?
+2. How can a single active case and shared statement engine make multi-method valuation both faster and less self-deceptive than separate workbooks?
+3. Which design choices—especially what *not* to automate—preserve honesty when live filings and teaching samples share the same code path?
+
+### 1.2 Contributions
+
+- A taxonomy of valuation models by **question answered**, not by worksheet layout.
+- An integration architecture: **active case → shared forecast identities → method-specific engines → non-averaging bridge**, with cached live statements for fast re-runs.
+- Explicit conventions that change answers (tax-shield placement, net-debt timing, fiscal-year comps, LBO fee treatment, steady-state surface anchors), stated as assumptions rather than hidden defaults.
+- Interactive sensitivity surfaces (DCF and LBO) that expose two-way dependence without claiming a single fair value.
+
+This is not an investment recommendation system. The notebooks are a laboratory for learning the models and comparing them under one set of drivers.
+
+---
+
+## 2. Why each model matters
+
+### 2.1 Three-statement model — articulation
+
+**Question.** Can the income statement, balance sheet, and cash flow operate as one closed system?
+
+Valuation methods that ignore articulation invent cash. Every stock must roll forward from a flow: net income less dividends rolls equity; capex less D&A rolls PP&E; revenue and COGS, through DSO/DIO/DPO, set working-capital stocks; debt moves by schedule and by a plug when cash would breach a floor; cash is the residual. Without those links, “unlevered free cash flow” is a spreadsheet artifact rather than a consequence of operations.
+
+In this project the statement engine is shared. Sample history is generated by the same machinery as the forecast, so identities can be exact for teaching. Live filings are mapped, not rewritten; gaps are reported; cash is not edited to force a tie. That asymmetry is intentional: forecast coherence is a modeling choice, while reported history is messy.
+
+**Failure mode.** Treating the three statements as decorative tabs and then “finding” free cash flow that never cleared the balance sheet.
+
+### 2.2 Discounted cash flow — intrinsic cash generation
+
+**Question.** What is equity worth from the cash the business can generate under these assumptions?
+
+DCF forces an explicit forecast of growth, margins, reinvestment, and risk. Unlevered free cash flow in this implementation is:
+
+\[
+\mathrm{UFCF}_t = \mathrm{EBIT}_t\,(1-t) + \mathrm{D\&A}_t - \mathrm{Capex}_t - \Delta\mathrm{NWC}_t
+\]
+
+The interest tax shield sits in WACC, not in the cash flows, so beginning-debt versus average-debt interest conventions can change net income without changing UFCF. Two terminal conventions are shown—Gordon growth on next-period free cash flow, and an exit multiple on final-year EBITDA—because they are different theories of the terminal period and will not agree. When terminal value dominates enterprise value, the DCF is mostly that assumption; the model reports the terminal share of EV.
+
+Net debt is taken from the latest balance sheet only. Forecast cash is already inside discounted free cash flow; adding it again would double-count. The same net-debt timing rule is used in SOTP.
+
+**Failure mode.** False precision: a neat present value that hides aggressive terminal growth, an inconsistent capital structure in WACC, or a reinvestment path that never funds the growth.
+
+### 2.3 Trading comps — relative market pricing
+
+**Question.** What do peers say the latest fiscal-year earnings are worth?
+
+Comps matter because markets clear capital and because many transactions are negotiated in multiples. Relative valuation also disciplines the DCF: a sharp gap between intrinsic and peer-implied value requires an explanation of the forecast, the peer set, or the market regime.
+
+This implementation is deliberately conservative about timing. Multiples use the latest fiscal year—not an LTM stub and not NTM consensus (there is no consensus feed). The current price is paired with that fiscal year, and the case states the mismatch. The subject is excluded from its own peer set. Outliers remain in the min, median, mean, and max. EV/Sales, EV/EBITDA, and P/E answer different capital-structure questions; P/E is equity-side and must not subtract net debt again.
+
+**Failure mode.** Peer contamination—mixing business models or capital structures and treating the median as truth.
+
+### 2.4 Leveraged buyout — sponsor affordability
+
+**Question.** What can a sponsor pay for equity and still earn the target return under this debt structure?
+
+An LBO is a financing and returns model, not an intrinsic-value model. It remains indispensable in private equity and in public-company floor analyses because it answers whether a buyer with leverage, a hold period, and an exit multiple can clear a hurdle IRR.
+
+Here, debt is sized on entry EBITDA, not on purchase price. Paying more raises sponsor equity, not the term loan. Fees are paid by the sponsor at close and do not reduce company cash. The returns bridge attributes firm-equity change to EBITDA growth at the exit multiple, multiple change on entry EBITDA, and deleveraging; fees sit outside that operating bridge. Exit equity is exit enterprise value minus ending net debt—not book equity. The valuation bridge’s LBO mark is the highest equity purchase price that still earns the target IRR: a bid under constraints.
+
+**Failure mode.** Treating a financing bid as if it were the same object as a DCF mid-case.
+
+### 2.5 Sum of the parts — composition
+
+**Question.** If divisions were valued on their own multiples, what is equity worth after one subtraction for parent net debt?
+
+SOTP matters when the firm is a portfolio: segments may clear at different multiples, and corporate costs may be valued as a drag. A conglomerate discount, if used, is an assumption about how markets price complexity—not a law.
+
+Each segment here is an allocation rule (revenue share × margin × EV/EBITDA), not a separate audited history. Corporate cost is valued once; parent net debt is subtracted once from the latest balance sheet; forecast cash is not subtracted again. Segment EBITDA less corporate drag should reconcile to consolidated EBITDA; gaps are reported, not forced. Live tickers do not invent segment footnotes—segments must be supplied in the preset or custom case.
+
+**Failure mode.** Elegant arithmetic on allocations with no disclosure support.
+
+### 2.6 Valuation bridge — disagreement as the result
+
+**Question.** Where do the methods agree, and where do they not?
+
+The bridge is the integration thesis made visible. It runs both DCF terminals, comps ranges, the LBO target-IRR bid, and SOTP on the same case and share count. It does **not** average methods into a target price. The spread *is* the result:
+
+| Pattern in the bridge | Typical reading |
+| --- | --- |
+| Gordon ≪ exit multiple | Terminal convention, not “two DCFs agreeing” |
+| Wide comps bar | Peer heterogeneity (often one outlier business model) |
+| LBO bid below market | This leverage and exit multiple cannot clear the entered price at the hurdle |
+| DCF far from market | Forecast, WACC, and terminal assumptions—not a hidden “true” price in the history |
+
+**Failure mode.** Narrative cherry-picking across inconsistent books, or a blended target that buries method conflict.
+
+---
+
+## 3. System architecture: how the project ties the models together
+
+### 3.1 One active case
+
+Every model notebook calls `open_active_case()`. The active universe is set once:
+
+```yaml
+# cases/active.yaml
+preset: micron    # sample | micron | apple | microsoft | nvidia | amd | custom
+```
+
+```python
+from valuation import switch_case, open_active_case
+case = switch_case("MU")   # preset name or ticker
+# …or edit the dropdown in notebooks/00_active_case.ipynb
+```
+
+`Case` carries name, currency, history (`Statements`), `Assumptions` (including nested `LboAssumptions`), peers, segments, warnings, and timing notes. Figures are in millions of currency units except price, shares, rates, and multiples. That object is the contract between loading and every engine (`run_dcf`, `run_comps`, `run_lbo`, `run_sotp`, `valuation_bridge`).
+
+Named presets (Micron, Apple, Microsoft, NVIDIA, AMD) bundle ticker, peer list, and optional illustrative segments. The synthetic sample (Northbridge Industries) keeps statement identities exact for teaching. Downloaded statements are cached under `data/equities/` so re-runs stay fast.
+
+### 3.2 One statement engine, many consumers
+
+The three-statement forecast is the shared operating spine. DCF reads forecast income and cash flow to build UFCF. LBO reuses operating drivers under a transaction capital structure. Forward SOTP takes consolidated revenue/EBITDA from the same forecast before allocating by segment. Comps read the latest historical year for subject metrics and net debt. An assumption edit—growth, margin, days, tax, interest—updates the spine once.
+
+On live loads, extreme cycle prints are faded toward steadier forecast drivers (growth toward mid-single digits; capex toward a maintenance-like share of sales), with warnings attached. Those fades are starting points for analysis, not a finished view of the stock.
+
+### 3.3 Independent notebooks, package-level integration
+
+Notebooks open in any order. Nothing is saved between kernels. Integration lives in the package and the active case file, not in notebook execution order. Notebook `00` is the control plane; `01`–`06` are the lenses.
+
+### 3.4 Live data without silent cleanup
+
+Live tickers map Yahoo Finance annual statements into the same lines as the sample. Mapping warnings are first-class. Unclassified items sit in Other assets / Other liabilities and are not treated as cash. Sample peers are never mixed with a live price. Forecast drivers begin as mechanical readings of the latest year (subject to the fades above) until the analyst edits `case.assumptions`.
+
+Speed comes from a shared shape, a cache, and runnable engines—not from pretending filings are already a teaching model.
+
+### 3.5 Sensitivity surfaces
+
+Dense two-way maps make assumption dependence inspectable:
+
+| Surface | Axes | Output |
+| --- | --- | --- |
+| Gordon DCF | WACC × terminal growth | Price per share |
+| Exit-multiple DCF | WACC × exit EV/EBITDA | Price per share |
+| LBO | Entry EV/EBITDA × exit EV/EBITDA | Sponsor IRR |
+
+Gordon surfaces use a **steady-state FCFF** anchored on latest-year economics (NOPAT with a g/ROIC reinvestment haircut), not the raw multi-year UFCF path. That choice recovers the classic textbook shape \(V = \mathrm{FCFF}_1 / (WACC - g)\) for cyclical names whose extrapolated forecast path can be deeply negative. Path DCFs in the main engine remain separate; the surface is a diagnostic layer, not a second hidden valuation.
+
+Charts share one institutional palette (`valuation/theme.py`): black ink, cool gray rules, one blue series accent, one red for losses. Plotly is the default for orbitable surfaces and hoverable heatmaps; matplotlib remains available via `VALUATION_CHARTS=matplotlib`.
+
+### 3.6 Information flow
+
+```text
+          cases/active.yaml  /  switch_case / dropdown
+                           │
+                           ▼
+                    open_active_case()
+                           │
+                           ▼
+                      Case object
+             (history, assumptions, peers,
+              segments, warnings, timing)
+                           │
+         ┌─────────────────┼─────────────────┐
+         ▼                 ▼                 ▼
+ forecast_statements    run_comps         segments
+         │                 │                 │
+    ┌────┴────┐            │                 ▼
+    ▼         ▼            │             run_sotp
+ run_dcf   run_lbo         │                 │
+    │         │            │                 │
+    │    IRR surface       │                 │
+    │         │            │                 │
+    │    WACC–g / WACC–× surfaces (diagnostic)
+    │         │            │                 │
+    └────┬────┴────────────┴─────────────────┘
+         ▼
+  valuation_bridge
+ (football field; no average)
+```
+
+---
+
+## 4. Illustration: Micron Technology on the active case
+
+The following snapshot uses the project’s `micron` preset (MU with USD peers AVGO, AMD, INTC, QCOM, NVDA, TXN, ADI). Statements are fiscal years through 2025; the market price is as of the cache date stamped on the case. Figures are **not** a view on the stock—they demonstrate how the bridge reports disagreement when methods share one assumption set.
+
+**Path DCF (forecast engine).** At the loaded assumptions, WACC ≈ 15.0%, Gordon equity value ≈ $52/share, exit-multiple equity value ≈ $120/share, with terminal value ≈ 90–96% of enterprise value. The DCF is therefore mostly a terminal assumption, by the model’s own disclosure.
+
+**Steady-state Gordon surface mark.** Anchored FCFF₁ ≈ $7.1B yields a surface base mark near $45/share at the same WACC and terminal growth—consistent in order of magnitude with the path Gordon result, and explicitly separated from the raw forecast path.
+
+**Comps (latest fiscal year).** Peer-implied mid prices span roughly $480–$670/share across P/E, EV/Sales, and EV/EBITDA, with wide high ends (EV/EBITDA high above $2,000/share) once outliers remain in the range. The width is informative: the peer set mixes very different growth and margin regimes.
+
+**LBO.** Highest equity purchase price still clearing a 20% IRR under the loaded debt structure ≈ $125/share—an affordability bid, not an intrinsic mid-case.
+
+**SOTP.** Illustrative DRAM/NAND allocations in the preset imply ≈ $208/share after parent net debt, with a disclosed EBITDA allocation gap. Segments are teaching inputs, not audited footnotes.
+
+**Bridge reading.** Market mark on the case sits far above path DCF, LBO bid, and illustrative SOTP, while comps mids sit between those intrinsic/transaction marks and the market print—with enormous peer dispersion. The correct analytical move is not to average these into a target. It is to ask which assumptions (cycle fade, WACC, terminal multiple, peer set, segment margins, leverage) drive each gap.
+
+That is the product’s intended workflow: load one case, read five answers, explain the spread.
+
+---
+
+## 5. Design principles
+
+| Principle | Rationale |
+| --- | --- |
+| One active case, many answers | Assumption changes propagate; inconsistent books become harder to cherry-pick. |
+| Question per notebook | Keeps LBO bids, DCF mid-cases, and comps ranges as distinct objects. |
+| Do not average the bridge | Spread is informative; a blended target hides conflict. |
+| Report terminal share of EV | Prevents mistaking a terminal assumption for a full forecast. |
+| Keep comps outliers | A wide honest range beats a cleaned false precision. |
+| Size LBO debt on EBITDA | Separates leverage capacity from purchase-price negotiation. |
+| Report live gaps; do not force ties | Speed without rewriting reality. |
+| Shared net-debt timing | Avoids double-counting forecast cash across DCF and SOTP. |
+| Steady-state surfaces, path DCF | Teaching maps stay well-behaved; path economics stay explicit. |
+| Cache live statements | Re-runs are fast enough for iterative assumption work. |
+
+The system is optimized for **cycle time of insight**—edit drivers, re-run, read the bridge and surfaces—rather than for a black-box fair value.
+
+---
+
+## 6. Methodology conventions
+
+These conventions are part of the model definition; changing them changes answers:
+
+- Working capital uses a 365-day year.
+- Tax is a full shield on pretax income, including a benefit when pretax income is negative; there is no NOL limit.
+- Unlevered FCF uses the case tax rate on EBIT; it does not reuse the levered tax line from the income statement (which would double-count the shield with WACC).
+- Sample WACC may use a target capital structure so the teaching price does not feed back into the discount rate; a live case uses book debt and the entered price without iterating to a fixed point.
+- Gordon growth and exit multiple are both shown because they are different terminal conventions.
+- In the LBO, fees sit outside company cash; exit equity is EV minus ending net debt, not book equity.
+- Floats are used; identity gaps below \(10^{-4}\) million ($100) are treated as numerical dust.
+- Automated tests cover statement identities, hand-worked DCF paths, IRR, comps medians with outliers, LBO sources and uses, returns bridge, target-IRR bid, active-case switching, and plot/surface smoke checks (32 tests at paper freeze).
+
+---
+
+## 7. Limitations
+
+- Comps are fiscal-year, not NTM; there is no consensus or broker-estimate feed.
+- Live segment data is not scraped; SOTP requires preset or caller-supplied segments.
+- Tax, leases, pensions, SBC, and other real-world complexities are simplified or residualized.
+- WACC is not solved to a circular fixed point with price.
+- Steady-state surface FCFF is a diagnostic anchor (fixed ROIC haircut), not a claim that the firm earns that ROIC forever.
+- No market-impact, liquidity, or capacity analysis accompanies any price output.
+- The paper makes no claim that triangulation here improves forecast-error metrics versus a single method; the claim is about analytical clarity and cycle time.
+
+---
+
+## 8. Conclusion
+
+Each classical model remains important because it answers a different question: articulation (three-statement), intrinsic cash generation (DCF), relative pricing (comps), sponsor affordability (LBO), and compositional value (SOTP). The valuation bridge matters because it refuses to collapse those answers into a false consensus.
+
+This project binds those models to one active case and one statement engine so that rapid modeling is also comparative modeling. Sensitivity surfaces make the most leverageable assumptions inspectable without pretending the map *is* the forecast. Speed comes from reuse and caching; rigor comes from what the system refuses to hide—timing mismatches, mapping gaps, terminal-value dependence, peer outliers, and the difference between a market price, a DCF, and a leveraged bid.
+
+The unit of analysis is the case. The unit of insight is the spread.
+
+---
+
+## References
+
+Standard practitioner references for the methods discussed; not claimed as sources of empirical results unique to this implementation.
+
+1. Damodaran, A. *Investment Valuation*; also *The Dark Side of Valuation*. Wiley. Intrinsic value, multiples, and terminal-value discipline.
+2. Koller, T., Goedhart, M., & Wessels, D. *Valuation: Measuring and Managing the Value of Companies*. McKinsey & Company / Wiley. DCF, continuing value, and enterprise–equity bridges.
+3. Rosenbaum, J., & Pearl, J. *Investment Banking: Valuation, LBOs, M&A, and IPOs*. Wiley. Comps practice and LBO mechanics in a transaction setting.
+4. Penman, S. H. *Financial Statement Analysis and Security Valuation*. McGraw-Hill. Statement articulation and residual-income perspectives.
+
+---
+
+## Appendix A. Notebook map
+
+| Notebook | Role | Primary output |
+| --- | --- | --- |
+| `00_active_case.ipynb` | Control plane | Set universe; smoke all models |
+| `01_three_statement.ipynb` | Linked statements | Audited forecast; identity gaps |
+| `02_dcf.ipynb` | Unlevered DCF | Gordon / exit prices; TV share; heatmaps; 3D surfaces |
+| `03_comps.ipynb` | Trading comps | Peer stats; implied price ranges |
+| `04_lbo.ipynb` | LBO | Sources & uses; debt schedule; IRR/MOIC; returns bridge; IRR surface |
+| `05_sum_of_the_parts.ipynb` | SOTP | Segment EV build-up; equity after parent net debt |
+| `06_valuation_bridge.ipynb` | Integration | Football field across methods; no average |
+
+## Appendix B. Package surface
+
+Public entry points include `open_active_case`, `switch_case`, `load_case`, `forecast_statements`, `run_dcf`, `run_comps`, `run_lbo`, `entry_equity_at_target_irr`, `run_sotp`, and `valuation_bridge` (exported from `valuation`). Presets live in `cases/presets.yaml`; the live pointer is `cases/active.yaml`. Chart theme and surfaces live in `valuation/theme.py` and `valuation/plots.py` / `valuation/plotly_charts.py`.
+
+## Appendix C. Micron bridge snapshot (illustrative)
+
+Active preset `micron` · price as of case stamp · fiscal statements through 2025 · USD millions modeling units · **not investment advice**.
+
+| Method | Mid ($/share) | Role |
+| --- | --- | --- |
+| Market price | case mark | Observed |
+| DCF, Gordon growth | ≈ 52 | Path intrinsic (Gordon TV) |
+| DCF, exit multiple | ≈ 120 | Path intrinsic (exit TV) |
+| Comps EV/Sales (median) | ≈ 603 | Relative |
+| Comps EV/EBITDA (median) | ≈ 666 | Relative |
+| Comps P/E (median) | ≈ 479 | Relative |
+| LBO at 20% IRR | ≈ 125 | Max bid at hurdle |
+| Sum of the parts | ≈ 208 | Illustrative segments |
+
+Reproduce by activating the `micron` preset and running `valuation_bridge(open_active_case())`.

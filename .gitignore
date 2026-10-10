@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ipynb_checkpoints/
+*.pyc
+.mypy_cache/
+.ipython/
+.mplconfig/
+# Cached statements are project data (Micron universe). Keep them.
+# data/equities/*.pkl is intentionally tracked when imported.
+
+# Generated offline chart review
+artifacts/
+
+# Local publish staging / G-strategy never belongs here
+_valuation_publish/
+g_strategy/
+notebooks/10_*.ipynb
+.cursor/

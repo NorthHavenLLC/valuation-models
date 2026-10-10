@@ -1,0 +1,63 @@
+# Large USD modeling universe (filings cached under data/equities/).
+# Prefer US-listed USD reporters so comps multiples stay in one currency.
+# Refresh: .venv/bin/python scripts/import_universe.py --universe --activate micron
+
+core_semis:
+  - MU
+  - AVGO
+  - AMD
+  - INTC
+  - QCOM
+  - NVDA
+  - TXN
+  - ADI
+  - MRVL
+  - NXPI
+  # ON omitted — yfinance resolves it unreliably
+  - MCHP
+  - MPWR
+  - SWKS
+  - QRVO
+  - WDC
+  - STX
+  - SMCI
+  - ARM
+
+semi_equipment:
+  - AMAT
+  - LRCX
+  - KLAC
+  - TER
+  - ENTG
+  - AEIS
+
+big_tech:
+  - AAPL
+  - MSFT
+  - GOOGL
+  - AMZN
+  - META
+  - ORCL
+  - CRM
+  - IBM
+  - CSCO
+  - NOW
+  - ADBE
+  - INTU
+  - AMD  # listed twice is fine — importer de-dupes
+
+software_infra:
+  - SNOW
+  - PANW
+  - CRWD
+  - DDOG
+  - NET
+  - PLTR
+
+hardware_adjacent:
+  - DELL
+  - HPE
+  - HPQ
+  - ANET
+  - NTAP
+  - KEYS
